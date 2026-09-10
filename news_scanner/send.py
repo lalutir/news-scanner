@@ -30,5 +30,10 @@ def send_digest(subject, html, text, recipients=None, from_email=None,
         },
         timeout=30,
     )
-    response.raise_for_status()
+    if not response.ok:
+        # Mailgun's response body names the actual reason (bad key, wrong
+        # region, unverified domain, ...) - raise_for_status() alone hides it.
+        raise RuntimeError(
+            f"Mailgun request failed ({response.status_code}): {response.text}"
+        )
     return response.json()
