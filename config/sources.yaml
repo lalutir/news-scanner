@@ -86,7 +86,11 @@
 - name: Algemeen Dagblad (AD)
   language: nl
   paywall: mixed
+  # The feed has no RSS <category> for this - premium pieces are marked via
+  # a custom dpp_paid element ('true'/'false'), verified by hand against the
+  # live feed on 2026-09-10.
   filter:
-    skip_categories: ["Premium"]
+    skip_field: dpp_paid
+    skip_value: "true"
   feeds:
     - url: https://www.ad.nl/home/rss.xml
