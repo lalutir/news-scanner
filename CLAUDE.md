@@ -14,8 +14,8 @@ Worth naming explicitly: putting the site in this repo, rather than its own, is 
 | Stage | Purpose | Status |
 |---|---|---|
 | Fetch | Pull new items from the configured RSS feeds | Done (`news_scanner/fetch.py`) |
-| Filter | Keep politics/geopolitics/conflict, drop paywalled items | Done (`news_scanner/filter.py` — keyword pre-filter, then Claude Haiku) |
-| Dedupe | Track what's already been sent so 07:00 and 19:00 never repeat a story | Done (`news_scanner/dedupe.py`) |
+| Dedupe | Drop anything already sent, *before* filtering - most of a feed's entries are still there from the previous run, and Haiku is the costly step | Done (`news_scanner/dedupe.py`) |
+| Filter | Keep politics/geopolitics/conflict, drop paywalled items | Done (`news_scanner/filter.py` — keyword pre-filter, then Claude Haiku, run only on unseen items) |
 | Digest | Compile the HTML + plaintext email | Done (`news_scanner/digest.py` — includes a synthesized daily-briefing paragraph) |
 | Send | Deliver via the Mailgun API | Done (`news_scanner/send.py`) |
 | Publish | Write `site/data/politics-geopolitics/latest.json` for the site to read | Done (`news_scanner/publish.py`) |

@@ -1,4 +1,8 @@
-"""One full fetch -> filter -> dedupe -> digest -> send -> publish cycle.
+"""One full fetch -> dedupe -> filter -> digest -> send -> publish cycle.
+
+Dedupe runs before the Claude filter, not after, so items already sent in
+an earlier digest never get re-summarized - most of a feed's entries are
+still there from the previous run, and Haiku is the costly step.
 
 Runs at 07:00 and 19:00 Europe/Amsterdam via systemd/news-scanner.timer.
 """
@@ -19,16 +23,16 @@ def run(dry_run=False):
     items = fetch_all()
     print(f"  {len(items)} items fetched")
 
+    print("Deduping against sent history...")
+    unseen = dedupe(items)
+    print(f"  {len(unseen)} unseen items ({len(items) - len(unseen)} already sent, dropped before filtering)")
+
     print("Filtering for relevance...")
-    relevant = filter_items(items)
+    relevant = filter_items(unseen)
     print(f"  {len(relevant)} items judged relevant")
 
-    print("Deduping against sent history...")
-    fresh = dedupe(relevant)
-    print(f"  {len(fresh)} fresh items after dedupe")
-
     print("Generating daily briefing...")
-    briefing = generate_briefing(fresh)
+    briefing = generate_briefing(relevant)
 
     run_label = current_run()
 
@@ -36,23 +40,23 @@ def run(dry_run=False):
         # Nothing reaches an inbox or the site on a dry run - see README's
         # "Getting started" step 3.
         print("\nDry run - not sending or publishing. Digest would read:\n")
-        print(compile_text(fresh, briefing))
-        return fresh
+        print(compile_text(relevant, briefing))
+        return relevant
 
     subject = f"Politics & Geopolitics digest - {run_label.upper()}"
-    html = compile_html(fresh, briefing)
-    text = compile_text(fresh, briefing)
+    html = compile_html(relevant, briefing)
+    text = compile_text(relevant, briefing)
 
     print(f"Sending digest to {settings.DIGEST_RECIPIENTS}...")
     send_digest(subject, html, text)
-    mark_sent(fresh)
+    mark_sent(relevant)
     print("Sent.")
 
     print("Publishing to site/data...")
-    publish(fresh, briefing, run=run_label)
+    publish(relevant, briefing, run=run_label)
     print("Done.")
 
-    return fresh
+    return relevant
 
 
 def main():
