@@ -1,0 +1,9 @@
+[Unit]
+Description=news-scanner digest run
+
+[Service]
+Type=oneshot
+User=lalutir
+WorkingDirectory=/home/lalutir/news-scanner
+EnvironmentFile=/home/lalutir/news-scanner/.env
+ExecStart=/home/lalutir/news-scanner/venv/bin/python -m news_scanner.run

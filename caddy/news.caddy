@@ -1,0 +1,4 @@
+news.lalutir.com {
+    root * /home/lalutir/news-scanner/site
+    file_server
+}
