@@ -11,8 +11,6 @@ from news_scanner import settings  # noqa: F401 - loads .env as a side effect
 
 KEYWORDS_PATH = Path(__file__).resolve().parent.parent / "config" / "keywords.yaml"
 
-MODEL = "claude-haiku-4-5-20251001"
-
 RELEVANCE_TOOL = {
     "name": "relevance_verdict",
     "description": (
@@ -69,7 +67,7 @@ def keyword_prefilter(items, keywords=None):
 
 def _judge(client, item):
     message = client.messages.create(
-        model=MODEL,
+        model=settings.HAIKU_MODEL,
         max_tokens=300,
         tools=[RELEVANCE_TOOL],
         tool_choice={"type": "tool", "name": "relevance_verdict"},

@@ -16,3 +16,5 @@ DIGEST_RECIPIENTS = [
     if addr.strip()
 ]
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
