@@ -19,7 +19,9 @@ def send_digest(subject, html, text, recipients=None, from_email=None,
         raise ValueError("Mailgun is not fully configured - check .env")
 
     response = requests.post(
-        f"https://api.mailgun.net/v3/{domain}/messages",
+        # mg.lalutir.com is an EU-region Mailgun domain - the US endpoint
+        # (api.mailgun.net) rejects an EU key with a bare 401 Forbidden.
+        f"https://api.eu.mailgun.net/v3/{domain}/messages",
         auth=("api", api_key),
         data={
             "from": from_email,
