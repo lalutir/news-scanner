@@ -37,6 +37,7 @@ def build_payload(items, briefing, run=None, generated_at=None):
                 "language": item["language"],
                 "published_at": item["published_at"],
                 "summary": item["summary"],
+                "topic": item["topic"],
             }
             for item in items
         ],

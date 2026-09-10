@@ -8,6 +8,7 @@ A twice-daily politics/geopolitics/conflict news digest — fetched from a curat
 
 - Pulls new articles from a fixed list of RSS feeds — see `CLAUDE.md` for the starting list
 - Keeps only what's on-topic: politics, geopolitics, war and conflict, national and international
+- Groups coverage of the same specific story across outlets and languages together, instead of listing every source's take separately
 - Skips paywalled sources, and skips the paywalled portion of mixed sources
 - Emails one digest at **07:00** and one at **19:00**, Europe/Amsterdam, via a systemd timer
 - Publishes the same digest to `news.lalutir.com`, where a dropdown selects between registered newsletters (one for now)
@@ -20,7 +21,7 @@ A twice-daily politics/geopolitics/conflict news digest — fetched from a curat
 - SSH access to the droplet as the `lalutir` user, same as every other project there.
 - An `A` record for `news` in Cloudflare, pointing at the droplet.
 - Python 3.11+.
-- An Anthropic API key — filtering and the daily briefing both call Claude Haiku (see the tradeoffs in `CLAUDE.md`), so this one isn't optional.
+- An Anthropic API key — filtering and the daily briefing call Claude Haiku, clustering calls Sonnet (see the tradeoffs in `CLAUDE.md`), so this one isn't optional.
 
 ## Configuration
 
@@ -32,7 +33,7 @@ Backend config lives in environment variables (`.env`, not committed) — the si
 | `MAILGUN_DOMAIN` | `mg.lalutir.com` |
 | `DIGEST_FROM_EMAIL` | The sending address, e.g. `noreply@lalutir.com` |
 | `DIGEST_RECIPIENTS` | Comma-separated recipient list |
-| `ANTHROPIC_API_KEY` | Used by every run — Claude Haiku makes the relevance call, writes summaries, and drafts the daily briefing |
+| `ANTHROPIC_API_KEY` | Used by every run — Claude Haiku makes the relevance call, writes summaries, and drafts the daily briefing; Claude Sonnet groups items into story clusters |
 
 ## Getting started
 
@@ -58,6 +59,7 @@ Backend config lives in environment variables (`.env`, not committed) — the si
 │   ├── settings.py             # loads .env once for every stage below
 │   ├── fetch.py               # pull + parse the configured feeds
 │   ├── filter.py              # keyword pre-filter, then Claude Haiku
+│   ├── cluster.py             # groups items by specific story (Claude Sonnet)
 │   ├── dedupe.py              # tracks what's already been sent
 │   ├── digest.py              # compiles the HTML/plaintext email + daily briefing
 │   ├── send.py                # Mailgun API call

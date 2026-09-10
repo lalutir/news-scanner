@@ -1,9 +1,10 @@
 """Compiles the HTML + plaintext digest email.
 
-Grouped by source, no cross-source clustering (see CLAUDE.md's "Cross-source
-duplication" tradeoff - that's a v2). Each entry links to the original
-article; only a headline and the filter stage's one-line summary go in the
-body, never full article text.
+Grouped by specific story (see news_scanner/cluster.py and CLAUDE.md's
+"Cross-source duplication" tradeoff), not by source - multiple outlets
+covering the same event appear together under one heading, each with its
+own byline. Each entry links to the original article; only a headline and
+the filter stage's one-line summary go in the body, never full article text.
 """
 
 from html import escape
@@ -65,26 +66,29 @@ def generate_briefing(items, client=None):
     raise RuntimeError("Haiku did not return a tool_use block")
 
 
-def _group_by_source(items):
+def _group_by_topic(items):
+    """Preserves first-seen topic order rather than sorting alphabetically -
+    keeps roughly chronological/as-fetched ordering intact."""
     grouped = {}
     for item in items:
-        grouped.setdefault(item["source"], []).append(item)
+        grouped.setdefault(item["topic"], []).append(item)
     return grouped
 
 
 def compile_html(items, briefing):
-    grouped = _group_by_source(items)
+    grouped = _group_by_topic(items)
     sections = []
-    for source, source_items in grouped.items():
+    for topic, topic_items in grouped.items():
         entries_html = "\n".join(
             "<li style=\"margin-bottom:0.75em;\">"
             f'<a href="{escape(item["url"])}">{escape(item["title"])}</a>'
-            f'<p style="margin:0.2em 0 0; color:#444;">{escape(item["summary"])}</p>'
+            f'<p style="margin:0.2em 0 0; color:#444;">'
+            f'<strong>{escape(item["source"])}</strong> — {escape(item["summary"])}</p>'
             "</li>"
-            for item in source_items
+            for item in topic_items
         )
         sections.append(
-            f'<h2 style="font-size:1.05em; margin:1.5em 0 0.5em;">{escape(source)}</h2>\n'
+            f'<h2 style="font-size:1.05em; margin:1.5em 0 0.5em;">{escape(topic)}</h2>\n'
             f'<ul style="padding-left:1.2em; margin:0;">\n{entries_html}\n</ul>'
         )
     body = "\n".join(sections)
@@ -101,16 +105,16 @@ def compile_html(items, briefing):
 
 
 def compile_text(items, briefing):
-    grouped = _group_by_source(items)
+    grouped = _group_by_topic(items)
     lines = []
     if briefing:
         lines += [briefing, ""]
-    for source, source_items in grouped.items():
-        lines.append(source)
-        lines.append("-" * len(source))
-        for item in source_items:
+    for topic, topic_items in grouped.items():
+        lines.append(topic)
+        lines.append("-" * len(topic))
+        for item in topic_items:
             lines.append(item["title"])
-            lines.append(f"  {item['summary']}")
+            lines.append(f"  {item['source']}: {item['summary']}")
             lines.append(f"  {item['url']}")
         lines.append("")
     return "\n".join(lines).strip() + "\n"

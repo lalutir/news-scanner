@@ -238,6 +238,7 @@ img, svg { max-width: 100%; display: block; }
 .entry-list a { font-weight: 600; text-decoration: none; color: var(--ink); }
 .entry-list a:hover { color: var(--kelp); text-decoration: underline; }
 .entry-list .entry-summary { margin: 0.35rem 0 0; font-size: 0.95rem; }
+.entry-list .entry-source { font-weight: 600; color: var(--kelp); }
 
 .empty-state { color: var(--ink-soft); font-style: italic; }
 

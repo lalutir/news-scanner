@@ -82,28 +82,32 @@
       return;
     }
 
+    // Grouped by specific story (entry.topic), not by outlet - the same
+    // event covered by several sources appears once, together. See
+    // news_scanner/cluster.py.
     var groups = {};
     var order = [];
     entries.forEach(function (entry) {
-      if (!groups[entry.source]) {
-        groups[entry.source] = [];
-        order.push(entry.source);
+      var topic = entry.topic || entry.title;
+      if (!groups[topic]) {
+        groups[topic] = [];
+        order.push(topic);
       }
-      groups[entry.source].push(entry);
+      groups[topic].push(entry);
     });
 
-    order.forEach(function (source) {
+    order.forEach(function (topic) {
       var section = document.createElement('section');
       section.className = 'entry-group';
 
       var heading = document.createElement('h2');
-      heading.textContent = source;
+      heading.textContent = topic;
       section.appendChild(heading);
 
       var list = document.createElement('ul');
       list.className = 'entry-list';
 
-      groups[source].forEach(function (entry) {
+      groups[topic].forEach(function (entry) {
         var item = document.createElement('li');
         item.className = 'glass-panel';
 
@@ -114,13 +118,19 @@
         link.rel = 'noopener';
         item.appendChild(link);
 
+        var summary = document.createElement('p');
+        summary.className = 'entry-summary';
+
+        var sourceEl = document.createElement('span');
+        sourceEl.className = 'entry-source';
+        sourceEl.textContent = entry.source;
+        summary.appendChild(sourceEl);
+
         if (entry.summary) {
-          var summary = document.createElement('p');
-          summary.className = 'entry-summary';
-          summary.textContent = entry.summary;
-          item.appendChild(summary);
+          summary.appendChild(document.createTextNode(' — ' + entry.summary));
         }
 
+        item.appendChild(summary);
         list.appendChild(item);
       });
 

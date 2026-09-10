@@ -16,7 +16,8 @@ Worth naming explicitly: putting the site in this repo, rather than its own, is 
 | Fetch | Pull new items from the configured RSS feeds | Done (`news_scanner/fetch.py`) |
 | Dedupe | Drop anything already sent, *before* filtering - most of a feed's entries are still there from the previous run, and Haiku is the costly step | Done (`news_scanner/dedupe.py`) |
 | Filter | Keep politics/geopolitics/conflict, drop paywalled items | Done (`news_scanner/filter.py` — keyword pre-filter, then Claude Haiku, run only on unseen items) |
-| Digest | Compile the HTML + plaintext email | Done (`news_scanner/digest.py` — includes a synthesized daily-briefing paragraph) |
+| Cluster | Group items by specific story across sources/languages, not by outlet | Done (`news_scanner/cluster.py` — one Claude Sonnet call per run) |
+| Digest | Compile the HTML + plaintext email | Done (`news_scanner/digest.py` — grouped by cluster topic; includes a synthesized daily-briefing paragraph) |
 | Send | Deliver via the Mailgun API | Done (`news_scanner/send.py`) |
 | Publish | Write `site/data/politics-geopolitics/latest.json` for the site to read | Done (`news_scanner/publish.py`) |
 | Schedule | Trigger at 07:00 and 19:00 Europe/Amsterdam | Done (`systemd/news-scanner.{service,timer}` written; not yet installed on the droplet) |
@@ -183,7 +184,7 @@ Anti-patterns: numbered 01/02/03 markers unless content is a genuine sequence; m
   "run": "am",
   "briefing": "A few sentences synthesizing this run's items collectively.",
   "entries": [
-    { "title": "…", "source": "NOS", "url": "https://…", "language": "nl", "published_at": "2026-09-10T06:42:00+02:00", "summary": "…" }
+    { "title": "…", "source": "NOS", "url": "https://…", "language": "nl", "published_at": "2026-09-10T06:42:00+02:00", "summary": "…", "topic": "A specific, concrete story label - shared by every entry covering the same event" }
   ]
 }
 ```
@@ -209,7 +210,7 @@ New entry in `config/sources.yaml`: name, language, feed URL(s), paywall status.
 
 - **One repo for both halves.** Bundling the site into this repo, rather than its own (the droplet's usual pattern), keeps deploy to one script and means the site never reads across a repo boundary. The cost: this repo now mixes a Python backend with a static front-end, and its deploy script does more than either half would alone. If a second, differently-built newsletter shows up later, revisit whether it still belongs here.
 - **Relevance filtering.** A plain keyword match (politics/war/conflict-adjacent terms) is cheap and predictable, but will miss nuance and let some noise through. Using Claude (Haiku is enough) to make the actual relevance call — and write the one-line description — costs a little per run but handles nuance and can bridge an NL headline for an English reader without a separate translation step. Built as both, not one or the other: `config/keywords.yaml` cuts obvious noise before anything reaches Haiku, which then makes the real call on survivors.
-- **Cross-source duplication.** The same story often runs on several outlets. This starting design doesn't cluster near-duplicate stories across sources — it lists them as they arrive, grouped by source. Real clustering needs some notion of "same event" across two languages; treat it as a v2, not a blocker.
+- **Cross-source duplication.** The same story often runs on several outlets. Built via `news_scanner/cluster.py`: one Sonnet call per run groups filtered items by *specific* story, not by shared broad subject or source (every item mentioning "Trump" is not one cluster; "Trump proposes annexing Greenland" is a cluster, a separate Trump story is a different one) — cross-language, since the underlying event is what's matched, not the wording. The digest and site both group by this `topic` field instead of by source.
 - **Translation.** Dutch headlines stay in Dutch by default, both in the email and on the site, so the digest reflects what the source actually published. Bilingual delivery is a Claude-assisted addition on top of this, not a redesign.
 
 ## When to commit
