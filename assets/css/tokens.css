@@ -1,0 +1,83 @@
+/* ==========================================================================
+   Seaglass — Design Tokens
+   Tumbled, tinted, translucent. Portable — do not edit for this site's
+   specific needs; put site-specific rules in site.css instead.
+   See /CLAUDE.md for the rules behind these values.
+   ========================================================================== */
+
+:root {
+  /* Color — tumbled sea-glass palette */
+  --sand:          #F3EEE4;  /* base background — warm, never pure white */
+  --sand-solid:    #EFEADF;  /* opaque fallback for prefers-reduced-transparency */
+  --seafoam:       #B9CFC7;  /* primary — the common sea-glass green */
+  --seafoam-deep:  #8AA89D;
+  --kelp:          #4B6B62;  /* secondary — deep green, text-safe accents */
+  --amber-glass:   #C98A55;  /* warm accent — tumbled bottle glass */
+  --cobalt-rare:   #3E5A82;  /* THE one saturated accent — once per screen, max */
+  --ink:           #262A28;  /* text — near-black, never pure #000 */
+  --ink-soft:      #5B615D;  /* secondary / muted text */
+
+  /* Glass surfaces */
+  --glass-tint-seafoam: rgba(185, 207, 199, .38);
+  --glass-tint-amber:   rgba(201, 138, 85, .20);
+  --glass-tint-kelp:    rgba(75, 107, 98, .16);
+  --glass-border:       rgba(38, 42, 40, .10);
+  --glass-blur:         18px;
+  --glass-blur-deep:    30px;
+
+  /* Type */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body:    'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --size-display: clamp(2.25rem, 5vw, 4.25rem);
+  --size-h2:      clamp(1.4rem, 2.6vw, 2rem);
+  --size-body:    1rem;
+
+  /* Layout & motion */
+  --radius-panel:   1.25rem;
+  --radius-control: 0.65rem;
+  --space-section:  clamp(4rem, 8vw, 7rem);
+  --space-unit:     8px;
+  --motion-shift:   0.4s ease;
+  --max-width:      1080px;
+}
+
+/* Display text: force the low-opsz cut of Fraunces so it stays soft even
+   at large sizes — left on auto it snaps to a tighter, higher-contrast
+   cut at big sizes, which fights the whole point. */
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: none;
+  font-variation-settings: 'opsz' 12;
+}
+
+/* Reusable glass-panel base — extend with modifiers, don't fight it with
+   competing background/blur declarations in component files. */
+.glass-panel {
+  background: var(--glass-tint-seafoam);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-panel);
+  transition: backdrop-filter var(--motion-shift), background var(--motion-shift), opacity var(--motion-shift);
+}
+
+.glass-panel--amber { background: var(--glass-tint-amber); }
+.glass-panel--kelp  { background: var(--glass-tint-kelp); }
+.glass-panel--deep  {
+  backdrop-filter: blur(var(--glass-blur-deep));
+  -webkit-backdrop-filter: blur(var(--glass-blur-deep));
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel,
+  .glass-panel--amber,
+  .glass-panel--kelp {
+    background: var(--sand-solid);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-panel { transition: none; }
+}

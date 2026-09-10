@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[Site name]</title>
+<meta name="description" content="[One-sentence description for search results and link previews.]">
+<meta name="theme-color" content="#F3EEE4">
+<meta property="og:type" content="website">
+<meta property="og:title" content="[Site name]">
+<meta property="og:description" content="[Same one-sentence description.]">
+<meta property="og:url" content="[https://your-domain/]">
+<meta property="og:image" content="[https://your-domain/assets/og-image.png]">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/site.css">
+</head>
+<body>
+
+<a href="#main" class="skip-link">Skip to content</a>
+
+<nav class="site-nav glass-panel" aria-label="Primary">
+  <a class="mark" href="/">[mark]</a>
+  <button class="nav-toggle" aria-expanded="false" aria-controls="nav-links">Menu</button>
+  <ul id="nav-links">
+    <li><a href="/" aria-current="page">Home</a></li>
+    <!-- Add one <li><a> per page. No templating here — copy this block
+         into every page's nav and update aria-current="page" to match. -->
+  </ul>
+</nav>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="hero-panel glass-panel">
+      <h1>[The one true sentence about what this is.]</h1>
+      <p class="lede">[One or two sentences of support — specific, not generic. What does this actually do, for whom?]</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#">[Primary action]</a>
+        <a class="btn btn-secondary" href="#">[Secondary action]</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>[Section title]</h2>
+    </div>
+    <div class="card-grid">
+
+      <a class="glass-panel glass-focus" href="#" style="display:block; padding:1.75rem; text-decoration:none; color:inherit;">
+        <h3>[Card title]</h3>
+        <p>[Card copy — this card and its sibling below opt into the signature scroll motion via the glass-focus class. Delete this comment once real content replaces it.]</p>
+      </a>
+
+      <a class="glass-panel glass-panel--amber glass-focus" href="#" style="display:block; padding:1.75rem; text-decoration:none; color:inherit;">
+        <h3>[Card title]</h3>
+        <p>[Second card, using the amber glass variant for a little rhythm.]</p>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="footer-links">
+    <a href="#">[Link]</a>
+    <a href="mailto:you@example.com">[email]</a>
+  </div>
+  <p>&copy; <span id="year"></span> [site name]</p>
+</footer>
+
+<script src="/assets/js/site.js"></script>
+</body>
+</html>
