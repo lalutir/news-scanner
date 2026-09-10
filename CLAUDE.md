@@ -102,6 +102,7 @@ Anti-patterns: numbered 01/02/03 markers unless content is a genuine sequence; m
 - Everything runs on the same droplet as the rest of lalutir.com, under the `lalutir` user, at `/home/lalutir/news-scanner/` — same convention as `lalutir.com` and `p2000-reader`.
 - Mail is already built per `mailserver.pdf`: Mailcow + Cloudflare DNS + Mailgun as the outbound relay (DigitalOcean blocks port 25 on new droplets), sending domain `mg.lalutir.com`, mail hostname `mail.lalutir.com`.
 - The backend sends via Mailgun's HTTP API directly, with its own scoped API key — not by routing through Mailcow's SMTP submission port.
+- **The Mailgun account is EU-region.** Always post to `api.eu.mailgun.net`, never `api.mailgun.net` (US) — the US endpoint rejects an EU key with a bare `401 Forbidden` that gives no hint it's a region mismatch rather than a bad key. Learned this the hard way on the first real droplet run.
 - Sending address: `noreply@lalutir.com`, either works once the DNS checks out. 
 - **The twice-daily run is a systemd timer, not cron** — matches how `p2000.lalutir.com` already uses systemd for its own background process on this droplet, and gives cleaner logs (`journalctl -u news-scanner`) than crontab would:
 
