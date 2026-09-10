@@ -1,0 +1,6 @@
+.env
+venv/
+__pycache__/
+*.pyc
+state/sent.sqlite3
+site/data/*/latest.json

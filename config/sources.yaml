@@ -1,0 +1,92 @@
+# Source list — see CLAUDE.md "Sources (starting list)" for the paywall
+# reasoning behind each entry. Verified September 2026; feed paths move,
+# re-check before relying on a new one (news_scanner/fetch.py's --check-feeds
+# mode does this).
+#
+# Deliberately excluded, do not add without checking the paywall model first:
+# CNN (metered paywall since Oct 2024, judgment call either way), Reuters
+# (metered + no public RSS since 2020), NRC / de Volkskrant / Trouw
+# (subscriber-first, no meaningful free tier).
+
+- name: NOS
+  language: nl
+  paywall: none
+  feeds:
+    - url: https://feeds.nos.nl/nosnieuwsbuitenland
+      label: foreign
+    - url: https://feeds.nos.nl/nosnieuwspolitiek
+      label: politics
+
+- name: VRT NWS
+  language: nl
+  paywall: none
+  feeds:
+    - url: https://www.vrt.be/vrtnws/nl.rss.headlines.xml
+
+- name: BBC News
+  language: en
+  paywall: none
+  feeds:
+    - url: https://feeds.bbci.co.uk/news/world/rss.xml
+      label: world
+    - url: https://feeds.bbci.co.uk/news/world/europe/rss.xml
+      label: europe
+    - url: https://feeds.bbci.co.uk/news/world/middle_east/rss.xml
+      label: middle_east
+    - url: https://feeds.bbci.co.uk/news/politics/rss.xml?edition=uk
+      label: uk_politics
+
+- name: Al Jazeera English
+  language: en
+  paywall: none
+  feeds:
+    - url: https://www.aljazeera.com/xml/rss/all.xml
+
+- name: DW (Deutsche Welle)
+  language: en
+  paywall: none
+  feeds:
+    - url: https://rss.dw.com/rdf/rss-en-top
+
+- name: The Guardian
+  language: en
+  paywall: none
+  feeds:
+    - url: https://www.theguardian.com/world/rss
+      label: world
+    - url: https://www.theguardian.com/politics/rss
+      label: politics
+    - url: https://www.theguardian.com/world/europe-news/rss
+      label: europe
+
+- name: Euronews
+  language: en
+  paywall: none
+  feeds:
+    - url: https://www.euronews.com/rss
+
+- name: France 24
+  language: en
+  paywall: none
+  feeds:
+    - url: https://www.france24.com/en/rss
+
+- name: NL Times
+  language: en
+  paywall: none
+  feeds:
+    - url: https://nltimes.nl/rssfeed2
+
+- name: DutchNews.nl
+  language: en
+  paywall: none
+  feeds:
+    - url: https://www.dutchnews.nl/feed
+
+- name: Algemeen Dagblad (AD)
+  language: nl
+  paywall: mixed
+  filter:
+    skip_categories: ["Premium"]
+  feeds:
+    - url: https://www.ad.nl/home/rss.xml

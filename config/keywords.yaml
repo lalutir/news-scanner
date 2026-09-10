@@ -1,0 +1,105 @@
+# Cheap pre-filter, checked against title + raw_summary before anything
+# reaches Claude (see news_scanner/filter.py). Case-insensitive substring
+# match. Intentionally broad — this stage only needs to cut obvious noise
+# (sport, entertainment, lifestyle), the Haiku call makes the real relevance
+# and on-topic-within-politics/conflict call.
+
+en:
+  - election
+  - vote
+  - president
+  - prime minister
+  - parliament
+  - government
+  - minister
+  - cabinet
+  - coalition
+  - opposition party
+  - war
+  - conflict
+  - military
+  - troops
+  - army
+  - invasion
+  - occupation
+  - ceasefire
+  - airstrike
+  - missile
+  - offensive
+  - sanctions
+  - coup
+  - protest
+  - unrest
+  - uprising
+  - diplomat
+  - diplomacy
+  - foreign policy
+  - nato
+  - eu summit
+  - european union
+  - united nations
+  - security council
+  - geopolitic
+  - politic
+  - referendum
+  - treaty
+  - border dispute
+  - refugee
+  - annexation
+  - regime
+  - dictator
+  - human rights
+  - genocide
+  - insurgent
+  - militant
+  - terrorism
+  - nuclear
+
+nl:
+  - verkiezing
+  - stemming
+  - premier
+  - president
+  - kabinet
+  - regering
+  - minister
+  - coalitie
+  - oppositie
+  - tweede kamer
+  - eerste kamer
+  - oorlog
+  - conflict
+  - leger
+  - troepen
+  - invasie
+  - bezetting
+  - staakt-het-vuren
+  - luchtaanval
+  - raket
+  - offensief
+  - sancties
+  - staatsgreep
+  - protest
+  - onrust
+  - opstand
+  - diplomat
+  - diplomatie
+  - buitenlands beleid
+  - navo
+  - eu-top
+  - europese unie
+  - verenigde naties
+  - veiligheidsraad
+  - geopolitiek
+  - politiek
+  - referendum
+  - verdrag
+  - grensconflict
+  - vluchteling
+  - annexatie
+  - regime
+  - dictator
+  - mensenrechten
+  - genocide
+  - terrorisme
+  - kernwapen
