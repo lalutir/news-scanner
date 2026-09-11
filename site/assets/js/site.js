@@ -72,9 +72,9 @@
     return label + ' — ' + formatted;
   }
 
-  function renderEntries(entries) {
+  function renderTopics(topics) {
     entriesEl.innerHTML = '';
-    if (!entries.length) {
+    if (!topics.length) {
       var empty = document.createElement('p');
       empty.className = 'empty-state';
       empty.textContent = 'No new stories in this run.';
@@ -82,59 +82,42 @@
       return;
     }
 
-    // Grouped by specific story (entry.topic), not by outlet - the same
-    // event covered by several sources appears once, together. See
-    // news_scanner/cluster.py.
-    var groups = {};
-    var order = [];
-    entries.forEach(function (entry) {
-      var topic = entry.topic || entry.title;
-      if (!groups[topic]) {
-        groups[topic] = [];
-        order.push(topic);
-      }
-      groups[topic].push(entry);
-    });
-
-    order.forEach(function (topic) {
+    // One card per story cluster: a combined summary across every source
+    // covering it, plus a numbered (IEEE-style) reference list linking out
+    // to each original article. See news_scanner/cluster.py.
+    topics.forEach(function (topic) {
       var section = document.createElement('section');
       section.className = 'entry-group';
 
       var heading = document.createElement('h2');
-      heading.textContent = topic;
+      heading.textContent = topic.topic;
       section.appendChild(heading);
 
-      var list = document.createElement('ul');
-      list.className = 'entry-list';
+      var card = document.createElement('div');
+      card.className = 'glass-panel topic-card';
 
-      groups[topic].forEach(function (entry) {
-        var item = document.createElement('li');
-        item.className = 'glass-panel';
+      if (topic.summary) {
+        var summary = document.createElement('p');
+        summary.className = 'topic-summary';
+        summary.textContent = topic.summary;
+        card.appendChild(summary);
+      }
 
+      var refs = document.createElement('ol');
+      refs.className = 'reference-list';
+      (topic.sources || []).forEach(function (src, i) {
+        var li = document.createElement('li');
         var link = document.createElement('a');
-        link.href = entry.url;
-        link.textContent = entry.title;
+        link.href = src.url;
         link.target = '_blank';
         link.rel = 'noopener';
-        item.appendChild(link);
-
-        var summary = document.createElement('p');
-        summary.className = 'entry-summary';
-
-        var sourceEl = document.createElement('span');
-        sourceEl.className = 'entry-source';
-        sourceEl.textContent = entry.source;
-        summary.appendChild(sourceEl);
-
-        if (entry.summary) {
-          summary.appendChild(document.createTextNode(' — ' + entry.summary));
-        }
-
-        item.appendChild(summary);
-        list.appendChild(item);
+        link.textContent = '[' + (i + 1) + '] ' + src.source + ', “' + src.title + '”';
+        li.appendChild(link);
+        refs.appendChild(li);
       });
+      card.appendChild(refs);
 
-      section.appendChild(list);
+      section.appendChild(card);
       entriesEl.appendChild(section);
     });
   }
@@ -149,7 +132,7 @@
         briefingEl.appendChild(p);
       }
     }
-    renderEntries(payload.entries || []);
+    renderTopics(payload.topics || []);
   }
 
   function loadDigest(dataPath) {

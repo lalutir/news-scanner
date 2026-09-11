@@ -21,7 +21,7 @@ def current_run(now=None):
     return "am" if now.hour < 12 else "pm"
 
 
-def build_payload(items, briefing, run=None, generated_at=None):
+def build_payload(clusters, briefing, run=None, generated_at=None):
     generated_at = generated_at or datetime.now(TZ)
     run = run or current_run(generated_at)
     return {
@@ -29,23 +29,28 @@ def build_payload(items, briefing, run=None, generated_at=None):
         "generated_at": generated_at.isoformat(),
         "run": run,
         "briefing": briefing,
-        "entries": [
+        "topics": [
             {
-                "title": item["title"],
-                "source": item["source"],
-                "url": item["url"],
-                "language": item["language"],
-                "published_at": item["published_at"],
-                "summary": item["summary"],
-                "topic": item["topic"],
+                "topic": cluster["topic"],
+                "summary": cluster["summary"],
+                "sources": [
+                    {
+                        "source": item["source"],
+                        "title": item["title"],
+                        "url": item["url"],
+                        "language": item["language"],
+                        "published_at": item["published_at"],
+                    }
+                    for item in cluster["items"]
+                ],
             }
-            for item in items
+            for cluster in clusters
         ],
     }
 
 
-def publish(items, briefing, path=DATA_PATH, run=None, generated_at=None):
-    payload = build_payload(items, briefing, run=run, generated_at=generated_at)
+def publish(clusters, briefing, path=DATA_PATH, run=None, generated_at=None):
+    payload = build_payload(clusters, briefing, run=run, generated_at=generated_at)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)

@@ -233,12 +233,14 @@ img, svg { max-width: 100%; display: block; }
 .entries { max-width: var(--max-width); margin: 0 auto; padding: 0 1.5rem var(--space-section); }
 .entry-group { margin-bottom: 2.5rem; }
 .entry-group h2 { font-size: var(--size-h2); margin-bottom: 1rem; }
-.entry-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
-.entry-list li { padding: 1.1rem 1.35rem; }
-.entry-list a { font-weight: 600; text-decoration: none; color: var(--ink); }
-.entry-list a:hover { color: var(--kelp); text-decoration: underline; }
-.entry-list .entry-summary { margin: 0.35rem 0 0; font-size: 0.95rem; }
-.entry-list .entry-source { font-weight: 600; color: var(--kelp); }
+
+/* One card per story cluster: a combined summary, then a numbered
+   (IEEE-style) reference list linking to each source's original article. */
+.topic-card { padding: 1.25rem 1.5rem; }
+.topic-summary { margin: 0 0 0.85rem; font-size: 1rem; color: var(--ink); max-width: none; }
+.reference-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.reference-list a { font-size: 0.85rem; color: var(--ink-soft); text-decoration: none; }
+.reference-list a:hover { color: var(--kelp); text-decoration: underline; }
 
 .empty-state { color: var(--ink-soft); font-style: italic; }
 

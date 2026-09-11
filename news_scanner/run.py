@@ -11,7 +11,7 @@ Runs at 07:00 and 19:00 Europe/Amsterdam via systemd/news-scanner.timer.
 import argparse
 
 from news_scanner import settings  # noqa: F401 - loads .env as a side effect
-from news_scanner.cluster import assign_topics
+from news_scanner.cluster import cluster_items
 from news_scanner.dedupe import dedupe, mark_sent
 from news_scanner.digest import compile_html, compile_text, generate_briefing
 from news_scanner.fetch import fetch_all
@@ -34,11 +34,11 @@ def run(dry_run=False):
     print(f"  {len(relevant)} items judged relevant")
 
     print("Grouping into story clusters...")
-    clustered = assign_topics(relevant)
-    print(f"  {len(set(item['topic'] for item in clustered))} clusters")
+    clusters = cluster_items(relevant)
+    print(f"  {len(clusters)} clusters")
 
     print("Generating daily briefing...")
-    briefing = generate_briefing(clustered)
+    briefing = generate_briefing(clusters)
 
     run_label = current_run()
 
@@ -46,23 +46,23 @@ def run(dry_run=False):
         # Nothing reaches an inbox or the site on a dry run - see README's
         # "Getting started" step 3.
         print("\nDry run - not sending or publishing. Digest would read:\n")
-        print(compile_text(clustered, briefing))
-        return clustered
+        print(compile_text(clusters, briefing))
+        return clusters
 
     subject = f"Politics & Geopolitics digest - {run_label.upper()}"
-    html = compile_html(clustered, briefing)
-    text = compile_text(clustered, briefing)
+    html = compile_html(clusters, briefing)
+    text = compile_text(clusters, briefing)
 
     print(f"Sending digest to {settings.DIGEST_RECIPIENTS}...")
     send_digest(subject, html, text)
-    mark_sent(clustered)
+    mark_sent([item for cluster in clusters for item in cluster["items"]])
     print("Sent.")
 
     print("Publishing to site/data...")
-    publish(clustered, briefing, run=run_label)
+    publish(clusters, briefing, run=run_label)
     print("Done.")
 
-    return clustered
+    return clusters
 
 
 def main():

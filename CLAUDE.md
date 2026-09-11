@@ -16,8 +16,8 @@ Worth naming explicitly: putting the site in this repo, rather than its own, is 
 | Fetch | Pull new items from the configured RSS feeds | Done (`news_scanner/fetch.py`) |
 | Dedupe | Drop anything already sent, *before* filtering - most of a feed's entries are still there from the previous run, and Haiku is the costly step | Done (`news_scanner/dedupe.py`) |
 | Filter | Keep politics/geopolitics/conflict, drop paywalled items | Done (`news_scanner/filter.py` — keyword pre-filter, then Claude Haiku, run only on unseen items) |
-| Cluster | Group items by specific story across sources/languages, not by outlet | Done (`news_scanner/cluster.py` — one Claude Sonnet call per run) |
-| Digest | Compile the HTML + plaintext email | Done (`news_scanner/digest.py` — grouped by cluster topic; includes a synthesized daily-briefing paragraph) |
+| Cluster | Group items by underlying story across sources/languages, not by outlet; write each cluster's combined summary | Done (`news_scanner/cluster.py` — one Claude Sonnet call per run) |
+| Digest | Compile the HTML + plaintext email | Done (`news_scanner/digest.py` — one combined summary per topic plus an IEEE-style numbered source list, not a per-source recap; longer daily-briefing paragraph at the top) |
 | Send | Deliver via the Mailgun API | Done (`news_scanner/send.py`) |
 | Publish | Write `site/data/politics-geopolitics/latest.json` for the site to read | Done (`news_scanner/publish.py`) |
 | Schedule | Trigger at 07:00 and 19:00 Europe/Amsterdam | Done (`systemd/news-scanner.{service,timer}` written; not yet installed on the droplet) |
@@ -50,7 +50,7 @@ Non-negotiable:
 - English and Dutch sources only.
 - Politics, geopolitics, war and conflict — national and international. Not general news, sport, or entertainment, unless a story is genuinely about politics or conflict within one of those beats.
 - No source that sits behind a hard paywall. For a mixed source, pull only the free tier and skip anything tagged premium/subscriber-only.
-- Every item links to the original article — this digest is a pointer, not a republication. A headline and a one- or two-sentence description is enough; don't copy full article text into the email body or onto the site.
+- Every source is referenced with a link to its original article — this digest is a pointer, not a republication. A synthesized summary of what happened is enough; don't copy full article text into the email body or onto the site.
 - No story appears twice in one digest, and nothing already sent in an earlier digest gets sent again.
 
 Anti-patterns: adding a source just because it has an RSS feed, without checking its paywall model first — several major outlets added metered paywalls in 2024 and are easy to assume are still fully open (see CNN and Reuters below); letting one high-volume source dominate a digest.
@@ -182,9 +182,15 @@ Anti-patterns: numbered 01/02/03 markers unless content is a genuine sequence; m
   "newsletter_id": "politics-geopolitics",
   "generated_at": "2026-09-10T07:00:00+02:00",
   "run": "am",
-  "briefing": "A few sentences synthesizing this run's items collectively.",
-  "entries": [
-    { "title": "…", "source": "NOS", "url": "https://…", "language": "nl", "published_at": "2026-09-10T06:42:00+02:00", "summary": "…", "topic": "A specific, concrete story label - shared by every entry covering the same event" }
+  "briefing": "6-8 sentences synthesizing this run's stories collectively.",
+  "topics": [
+    {
+      "topic": "A specific, concrete story label - broad enough to cover multiple angles on the same story, not a shared subject or person",
+      "summary": "3-5 sentences combining every source below into one account of what happened - not a source-by-source recap.",
+      "sources": [
+        { "source": "NOS", "title": "…", "url": "https://…", "language": "nl", "published_at": "2026-09-10T06:42:00+02:00" }
+      ]
+    }
   ]
 }
 ```
@@ -210,7 +216,7 @@ New entry in `config/sources.yaml`: name, language, feed URL(s), paywall status.
 
 - **One repo for both halves.** Bundling the site into this repo, rather than its own (the droplet's usual pattern), keeps deploy to one script and means the site never reads across a repo boundary. The cost: this repo now mixes a Python backend with a static front-end, and its deploy script does more than either half would alone. If a second, differently-built newsletter shows up later, revisit whether it still belongs here.
 - **Relevance filtering.** A plain keyword match (politics/war/conflict-adjacent terms) is cheap and predictable, but will miss nuance and let some noise through. Using Claude (Haiku is enough) to make the actual relevance call — and write the one-line description — costs a little per run but handles nuance and can bridge an NL headline for an English reader without a separate translation step. Built as both, not one or the other: `config/keywords.yaml` cuts obvious noise before anything reaches Haiku, which then makes the real call on survivors.
-- **Cross-source duplication.** The same story often runs on several outlets. Built via `news_scanner/cluster.py`: one Sonnet call per run groups filtered items by *specific* story, not by shared broad subject or source (every item mentioning "Trump" is not one cluster; "Trump proposes annexing Greenland" is a cluster, a separate Trump story is a different one) — cross-language, since the underlying event is what's matched, not the wording. The digest and site both group by this `topic` field instead of by source.
+- **Cross-source duplication.** The same story often runs on several outlets. Built via `news_scanner/cluster.py`: one Sonnet call per run groups filtered items by underlying story, not by shared broad subject or source (every item mentioning "Trump" is not one cluster; "Trump proposes annexing Greenland" is) — but broad enough to keep multiple angles on one ongoing story together (an anniversary's official ceremony, survivor reflections, and a leader's statement belong in one cluster, not three). Cross-language, since the underlying story is what's matched, not the wording. The same call also writes each cluster's combined summary - one account synthesized across all of that cluster's sources, not a source-by-source recap - which the digest and site both render followed by a numbered (IEEE-style) reference list linking to each original article.
 - **Translation.** Dutch headlines stay in Dutch by default, both in the email and on the site, so the digest reflects what the source actually published. Bilingual delivery is a Claude-assisted addition on top of this, not a redesign.
 
 ## When to commit
