@@ -16,11 +16,11 @@ Worth naming explicitly: putting the site in this repo, rather than its own, is 
 | Fetch | Pull new items from the configured RSS feeds | Done (`news_scanner/fetch.py`) |
 | Dedupe | Drop anything already sent, *before* filtering - most of a feed's entries are still there from the previous run, and Haiku is the costly step | Done (`news_scanner/dedupe.py`) |
 | Filter | Keep politics/geopolitics/conflict, drop paywalled items | Done (`news_scanner/filter.py` — keyword pre-filter, then Claude Haiku, run only on unseen items) |
-| Cluster | Group items by underlying story across sources/languages, not by outlet; write each cluster's combined summary | Done (`news_scanner/cluster.py` — one Claude Sonnet call per run) |
+| Cluster | Group items by underlying story across sources/languages, not by outlet; write each cluster's combined summary | Done (`news_scanner/cluster.py` — one Claude Sonnet call per run; if the reply is truncated or malformed it splits the batch in half and retries each half, so a big backlog degrades instead of failing) |
 | Digest | Compile the HTML + plaintext email | Done (`news_scanner/digest.py` — one combined summary per topic plus an IEEE-style numbered source list, not a per-source recap; longer daily-briefing paragraph at the top) |
 | Send | Deliver via the Mailgun API | Done (`news_scanner/send.py`) |
 | Publish | Write `site/data/politics-geopolitics/latest.json` for the site to read | Done (`news_scanner/publish.py`) |
-| Schedule | Trigger at 07:00 and 19:00 Europe/Amsterdam | Done (`systemd/news-scanner.{service,timer}` written; not yet installed on the droplet) |
+| Schedule | Trigger at 07:00 and 19:00 Europe/Amsterdam | Done (`systemd/news-scanner.{service,timer}`, installed and enabled on the droplet since 2026-09-10) |
 
 ## Site map (`site/`)
 
@@ -117,6 +117,7 @@ Anti-patterns: numbered 01/02/03 markers unless content is a genuine sequence; m
   User=lalutir
   WorkingDirectory=/home/lalutir/news-scanner
   EnvironmentFile=/home/lalutir/news-scanner/.env
+  Environment=PYTHONUNBUFFERED=1
   ExecStart=/home/lalutir/news-scanner/venv/bin/python -m news_scanner.run
   ```
 
@@ -126,16 +127,15 @@ Anti-patterns: numbered 01/02/03 markers unless content is a genuine sequence; m
   Description=Run news-scanner at 07:00 and 19:00
 
   [Timer]
-  OnCalendar=*-*-* 07:00:00
-  OnCalendar=*-*-* 19:00:00
-  Timezone=Europe/Amsterdam
+  OnCalendar=*-*-* 07:00:00 Europe/Amsterdam
+  OnCalendar=*-*-* 19:00:00 Europe/Amsterdam
   Persistent=true
 
   [Install]
   WantedBy=timers.target
   ```
 
-  The `Timezone=` line is what actually guarantees Europe/Amsterdam — set it on the timer itself rather than relying on a `TZ` environment variable or the droplet's default (which is UTC unless changed).
+  The timezone suffix on each `OnCalendar=` line is what actually guarantees Europe/Amsterdam — the droplet itself runs on UTC. **There is no `Timezone=` key in `[Timer]`**: systemd logs "Unknown key name 'Timezone' in section 'Timer', ignoring" and silently schedules in UTC, which is why the first week of digests went out at 09:00 and 21:00 Amsterdam time. `systemd-analyze calendar "*-*-* 07:00:00 Europe/Amsterdam"` on the droplet shows the next elapse in UTC and is the quick way to check. `PYTHONUNBUFFERED=1` on the service keeps `journalctl -u news-scanner` in chronological order — without it every progress line is flushed at exit, after the traceback.
 
 - **The site is served the same way `world-cup-simulation.lalutir.com` is: plain static, no backend process of its own.** Because `publish` writes straight into this same repo's `site/data/`, Caddy never needs to reach into another project's directory — it's one `file_server` block:
 
@@ -216,7 +216,7 @@ New entry in `config/sources.yaml`: name, language, feed URL(s), paywall status.
 
 - **One repo for both halves.** Bundling the site into this repo, rather than its own (the droplet's usual pattern), keeps deploy to one script and means the site never reads across a repo boundary. The cost: this repo now mixes a Python backend with a static front-end, and its deploy script does more than either half would alone. If a second, differently-built newsletter shows up later, revisit whether it still belongs here.
 - **Relevance filtering.** A plain keyword match (politics/war/conflict-adjacent terms) is cheap and predictable, but will miss nuance and let some noise through. Using Claude (Haiku is enough) to make the actual relevance call — and write the one-line description — costs a little per run but handles nuance and can bridge an NL headline for an English reader without a separate translation step. Built as both, not one or the other: `config/keywords.yaml` cuts obvious noise before anything reaches Haiku, which then makes the real call on survivors.
-- **Cross-source duplication.** The same story often runs on several outlets. Built via `news_scanner/cluster.py`: one Sonnet call per run groups filtered items by underlying story, not by shared broad subject or source (every item mentioning "Trump" is not one cluster; "Trump proposes annexing Greenland" is) — but broad enough to keep multiple angles on one ongoing story together (an anniversary's official ceremony, survivor reflections, and a leader's statement belong in one cluster, not three). Cross-language, since the underlying story is what's matched, not the wording. The same call also writes each cluster's combined summary - one account synthesized across all of that cluster's sources, not a source-by-source recap - which the digest and site both render followed by a numbered (IEEE-style) reference list linking to each original article.
+- **Cross-source duplication.** The same story often runs on several outlets. Built via `news_scanner/cluster.py`: one Sonnet call per run groups filtered items by underlying story, not by shared broad subject or source (every item mentioning "Trump" is not one cluster; "Trump proposes annexing Greenland" is) — but broad enough to keep multiple angles on one ongoing story together (an anniversary's official ceremony, survivor reflections, and a leader's statement belong in one cluster, not three). Cross-language, since the underlying story is what's matched, not the wording. The same call also writes each cluster's combined summary - one account synthesized across all of that cluster's sources, not a source-by-source recap - which the digest and site both render followed by a numbered (IEEE-style) reference list linking to each original article. The tool schema is `strict`, the call streams with a 32k output cap, and a truncated or malformed reply makes the stage split the batch in half and retry each half recursively — a failed run marks nothing as sent, so without that fallback the backlog only grows and the next run fails the same way (2026-09-15 lost both digests to this).
 - **Translation.** Dutch headlines stay in Dutch by default, both in the email and on the site, so the digest reflects what the source actually published. Bilingual delivery is a Claude-assisted addition on top of this, not a redesign.
 
 ## When to commit

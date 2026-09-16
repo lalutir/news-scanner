@@ -8,6 +8,14 @@ items that just happen to share a subject or person while covering
 genuinely different developments (two unrelated Trump stories) do not.
 Also writes each cluster's combined summary, synthesized across every
 source in it. See CLAUDE.md's "Cross-source duplication" tradeoff.
+
+One Sonnet call per run. If that call comes back unusable (truncated,
+malformed, or missing), the items are split in half and each half is
+clustered separately, recursively, so a large backlog degrades to
+slightly-less-merged clusters instead of taking the whole run down. A
+failed run doesn't mark anything as sent, so without this the next run
+would face an even bigger backlog and fail the same way - which is what
+happened on 2026-09-15.
 """
 
 import json
@@ -22,6 +30,10 @@ CLUSTER_TOOL = {
         "Group news items into story clusters and write a combined summary "
         "for each cluster."
     ),
+    # strict: the API guarantees `input` matches this schema exactly. Without
+    # it, "clusters" occasionally arrived as a JSON-encoded string instead of
+    # an array - and one of those strings had a bad quote in it.
+    "strict": True,
     "input_schema": {
         "type": "object",
         "properties": {
@@ -58,10 +70,12 @@ CLUSTER_TOOL = {
                         },
                     },
                     "required": ["topic", "summary", "item_indices"],
+                    "additionalProperties": False,
                 },
             },
         },
         "required": ["clusters"],
+        "additionalProperties": False,
     },
 }
 
@@ -85,6 +99,125 @@ _PROMPT = (
     "language or wording.\n\n"
 )
 
+# Each cluster costs roughly 150 output tokens (label, 3-5 sentence summary,
+# index list). The old cap of 8000 covered ~55 clusters and was cut off on a
+# 151-item backlog. 32000 leaves room for several days of backlog; streaming
+# keeps a long response from tripping the SDK's non-streaming timeout.
+MAX_OUTPUT_TOKENS = 32000
+
+# A failed batch smaller than this isn't split again - its items just become
+# single-item clusters.
+MIN_SPLIT_SIZE = 8
+
+
+class ClusterResponseError(RuntimeError):
+    """Sonnet's reply was unusable: truncated, missing, or malformed."""
+
+
+def _single(item):
+    return {"topic": item["title"], "summary": item["summary"], "items": [item]}
+
+
+def _request_clusters(client, items):
+    """One clustering call. Returns the raw cluster list Sonnet produced, or
+    raises ClusterResponseError if the reply can't be trusted. API errors
+    (rate limits, outages) propagate as-is - those are for the SDK's own
+    retries and, failing that, the next scheduled run."""
+    listing = "\n".join(
+        f"{i}. [{item['source']}] {item['title']}: {item['summary']}"
+        for i, item in enumerate(items)
+    )
+    try:
+        with client.messages.stream(
+            model=settings.CLUSTER_MODEL,
+            max_tokens=MAX_OUTPUT_TOKENS,
+            tools=[CLUSTER_TOOL],
+            tool_choice={"type": "tool", "name": "story_clusters"},
+            messages=[{"role": "user", "content": _PROMPT + listing}],
+        ) as stream:
+            message = stream.get_final_message()
+    except ValueError as exc:
+        # The SDK raises ValueError when the tool input isn't parseable JSON
+        # at all; anything API-shaped is an anthropic.APIError, not this.
+        raise ClusterResponseError(f"unparseable tool input: {exc}") from exc
+
+    if message.stop_reason == "max_tokens":
+        raise ClusterResponseError(
+            f"response truncated at {MAX_OUTPUT_TOKENS} output tokens"
+        )
+    tool_use = next((b for b in message.content if b.type == "tool_use"), None)
+    if tool_use is None:
+        raise ClusterResponseError(
+            f"no tool_use block (stop_reason={message.stop_reason})"
+        )
+
+    clusters = tool_use.input.get("clusters") if isinstance(tool_use.input, dict) else None
+    if isinstance(clusters, str):
+        # Pre-strict quirk, kept as a belt-and-braces path: the whole payload
+        # as a JSON-encoded string.
+        try:
+            clusters = json.loads(clusters)
+        except json.JSONDecodeError as exc:
+            raise ClusterResponseError(f"clusters field is not valid JSON: {exc}") from exc
+        if isinstance(clusters, dict):
+            clusters = clusters.get("clusters")
+    if not isinstance(clusters, list):
+        raise ClusterResponseError(
+            f"clusters field is {type(clusters).__name__}, not a list"
+        )
+    return clusters
+
+
+def _assemble(items, raw_clusters):
+    """Turn Sonnet's index lists into clusters of the original item dicts.
+    Every item lands in exactly one cluster: an index Sonnet used twice
+    stays with the first cluster that claimed it, and anything it skipped
+    becomes a cluster of one."""
+    result = []
+    claimed = set()
+    for cluster in raw_clusters:
+        if not isinstance(cluster, dict) or not cluster.get("topic"):
+            continue
+        indices = [
+            i for i in cluster.get("item_indices", [])
+            if isinstance(i, int) and 0 <= i < len(items) and i not in claimed
+        ]
+        if not indices:
+            continue
+        claimed.update(indices)
+        result.append({
+            "topic": cluster["topic"],
+            "summary": cluster.get("summary", ""),
+            "items": [items[i] for i in indices],
+        })
+
+    for i, item in enumerate(items):
+        if i not in claimed:
+            result.append(_single(item))
+    return result
+
+
+def _cluster_or_split(client, items):
+    try:
+        raw = _request_clusters(client, items)
+    except ClusterResponseError as exc:
+        if len(items) < MIN_SPLIT_SIZE:
+            print(
+                f"  clustering {len(items)} items failed ({exc}); "
+                "keeping them as single-item clusters"
+            )
+            return [_single(item) for item in items]
+        half = len(items) // 2
+        print(
+            f"  clustering {len(items)} items failed ({exc}); "
+            f"retrying as two batches of {half} and {len(items) - half}"
+        )
+        return (
+            _cluster_or_split(client, items[:half])
+            + _cluster_or_split(client, items[half:])
+        )
+    return _assemble(items, raw)
+
 
 def cluster_items(items, client=None):
     """Returns a list of clusters: [{"topic", "summary", "items"}, ...],
@@ -93,54 +226,7 @@ def cluster_items(items, client=None):
     if not items:
         return []
     if len(items) == 1:
-        item = items[0]
-        return [{"topic": item["title"], "summary": item["summary"], "items": [item]}]
+        return [_single(items[0])]
 
     client = client or anthropic.Anthropic()
-    listing = "\n".join(
-        f"{i}. [{item['source']}] {item['title']}: {item['summary']}"
-        for i, item in enumerate(items)
-    )
-    message = client.messages.create(
-        model=settings.CLUSTER_MODEL,
-        max_tokens=8000,
-        tools=[CLUSTER_TOOL],
-        tool_choice={"type": "tool", "name": "story_clusters"},
-        messages=[{"role": "user", "content": _PROMPT + listing}],
-    )
-    for block in message.content:
-        if block.type == "tool_use":
-            clusters = block.input.get("clusters")
-            break
-    else:
-        raise RuntimeError("Claude did not return a tool_use block")
-
-    # Occasionally comes back as a JSON-encoded string instead of the
-    # array the schema asked for - tolerate it rather than crash.
-    if isinstance(clusters, str):
-        clusters = json.loads(clusters).get("clusters", [])
-
-    result = []
-    claimed = set()
-    for cluster in clusters:
-        indices = cluster.get("item_indices", [])
-        members = [items[i] for i in indices if 0 <= i < len(items)]
-        if not members:
-            continue
-        claimed.update(indices)
-        result.append({
-            "topic": cluster["topic"],
-            "summary": cluster.get("summary", ""),
-            "items": members,
-        })
-
-    # Anything Claude missed still needs to show up somewhere.
-    for i, item in enumerate(items):
-        if i not in claimed:
-            result.append({
-                "topic": item["title"],
-                "summary": item["summary"],
-                "items": [item],
-            })
-
-    return result
+    return _cluster_or_split(client, items)

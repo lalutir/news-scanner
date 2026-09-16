@@ -1,10 +1,14 @@
 [Unit]
-Description=Run news-scanner at 07:00 and 19:00
+Description=Run news-scanner at 07:00 and 19:00 Europe/Amsterdam
 
 [Timer]
-OnCalendar=*-*-* 07:00:00
-OnCalendar=*-*-* 19:00:00
-Timezone=Europe/Amsterdam
+# The timezone goes on the OnCalendar expression itself. There is no
+# Timezone= key in [Timer] - systemd ignores it with a warning and falls
+# back to the droplet's own zone (UTC), which is how the digest ended up
+# going out at 09:00 and 21:00 Amsterdam time. Check with:
+#   systemd-analyze calendar "*-*-* 07:00:00 Europe/Amsterdam"
+OnCalendar=*-*-* 07:00:00 Europe/Amsterdam
+OnCalendar=*-*-* 19:00:00 Europe/Amsterdam
 Persistent=true
 
 [Install]

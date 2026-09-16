@@ -6,4 +6,8 @@ Type=oneshot
 User=lalutir
 WorkingDirectory=/home/lalutir/news-scanner
 EnvironmentFile=/home/lalutir/news-scanner/.env
+# Without this, Python buffers stdout when it isn't a terminal, so every
+# progress line lands in the journal at once at exit - after the traceback,
+# with one shared timestamp. Unbuffered, the journal reads in order.
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/home/lalutir/news-scanner/venv/bin/python -m news_scanner.run
