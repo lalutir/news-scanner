@@ -9,6 +9,7 @@ A twice-daily politics/geopolitics/conflict news digest — fetched from a curat
 - Pulls new articles from a fixed list of RSS feeds — see `CLAUDE.md` for the starting list
 - Keeps only what's on-topic: politics, geopolitics, war and conflict, national and international
 - Groups coverage of the same story across outlets and languages together and writes one combined summary per topic, with numbered (IEEE-style) references back to each source, instead of listing every source's take separately
+- Only includes a story if at least two different outlets cover it; stories only one outlet reports are left out (and not summarized, which keeps the Claude bill down)
 - Skips paywalled sources, and skips the paywalled portion of mixed sources
 - Emails one digest at **07:00** and one at **19:00**, Europe/Amsterdam, via a systemd timer
 - Publishes the same digest to `news.lalutir.com`, where a dropdown selects between registered newsletters (one for now)

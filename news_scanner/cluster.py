@@ -9,13 +9,19 @@ genuinely different developments (two unrelated Trump stories) do not.
 Also writes each cluster's combined summary, synthesized across every
 source in it. See CLAUDE.md's "Cross-source duplication" tradeoff.
 
+Only stories covered by at least two different outlets are kept. A story one
+outlet alone reports is left out - and, to save output tokens, Sonnet is told
+not to write a summary for it at all. Several articles from the same outlet
+still count as one outlet.
+
 One Sonnet call per run. If that call comes back unusable (truncated,
 malformed, or missing), the items are split in half and each half is
 clustered separately, recursively, so a large backlog degrades to
 slightly-less-merged clusters instead of taking the whole run down. A
 failed run doesn't mark anything as sent, so without this the next run
 would face an even bigger backlog and fail the same way - which is what
-happened on 2026-09-15.
+happened on 2026-09-15. (A split also means an outlet in one half can't be
+matched with an outlet in the other; that story is left out as single-outlet.)
 """
 
 import json
@@ -28,7 +34,7 @@ CLUSTER_TOOL = {
     "name": "story_clusters",
     "description": (
         "Group news items into story clusters and write a combined summary "
-        "for each cluster."
+        "for each cluster covered by at least two different outlets."
     ),
     # strict: the API guarantees `input` matches this schema exactly. Without
     # it, "clusters" occasionally arrived as a JSON-encoded string instead of
@@ -65,7 +71,9 @@ CLUSTER_TOOL = {
                             "items": {"type": "integer"},
                             "description": (
                                 "0-based indices, from the numbered list "
-                                "given, of every item covering this story."
+                                "given, of every item covering this story. "
+                                "Items must come from at least two different "
+                                "outlets."
                             ),
                         },
                     },
@@ -91,12 +99,16 @@ _PROMPT = (
     "rejects Trump's Greenland remarks' belong together (same story, "
     "different angles); 'Trump renews push to annex Greenland' and 'Trump "
     "announces new steel tariffs' do not (same person, unrelated stories). "
-    "Every item must end up in exactly one cluster, including a cluster of "
-    "one if nothing else covers that story. Then write each cluster's "
-    "combined summary - one account synthesized across all of that "
-    "cluster's sources, not a source-by-source recap. Items may be in "
-    "English or Dutch - match and summarize by the underlying story, not by "
-    "language or wording.\n\n"
+    "Each item belongs to at most one cluster, and two clusters must never "
+    "be about the same story - if they would be, make them one.\n\n"
+    "Only return a cluster if at least two different outlets (the name in "
+    "square brackets) cover it; several items from the same outlet count as "
+    "a single outlet. Leave every other item out entirely - do not write a "
+    "cluster or a summary for a story only one outlet covers.\n\n"
+    "For each cluster, write the combined summary - one account synthesized "
+    "across all of that cluster's sources, not a source-by-source recap. "
+    "Items may be in English or Dutch - match and summarize by the "
+    "underlying story, not by language or wording.\n\n"
 )
 
 # Each cluster costs roughly 150 output tokens (label, 3-5 sentence summary,
@@ -105,17 +117,20 @@ _PROMPT = (
 # keeps a long response from tripping the SDK's non-streaming timeout.
 MAX_OUTPUT_TOKENS = 32000
 
-# A failed batch smaller than this isn't split again - its items just become
-# single-item clusters.
+# A failed batch smaller than this isn't split again - its items are left
+# unjudged and retried on the next run.
 MIN_SPLIT_SIZE = 8
+
+# A story needs coverage from at least this many different outlets.
+MIN_OUTLETS = 2
 
 
 class ClusterResponseError(RuntimeError):
     """Sonnet's reply was unusable: truncated, missing, or malformed."""
 
 
-def _single(item):
-    return {"topic": item["title"], "summary": item["summary"], "items": [item]}
+def _outlets(items):
+    return {item["source"] for item in items}
 
 
 def _request_clusters(client, items):
@@ -170,10 +185,12 @@ def _request_clusters(client, items):
 
 def _assemble(items, raw_clusters):
     """Turn Sonnet's index lists into clusters of the original item dicts.
-    Every item lands in exactly one cluster: an index Sonnet used twice
-    stays with the first cluster that claimed it, and anything it skipped
-    becomes a cluster of one."""
-    result = []
+    Returns (clusters, uncorroborated). A cluster is only kept if its items
+    span at least MIN_OUTLETS outlets - Sonnet is told to leave single-outlet
+    stories out, but that's enforced here rather than trusted. An index Sonnet
+    used twice stays with the first cluster that claimed it, and everything
+    not in a kept cluster is returned as uncorroborated."""
+    clusters = []
     claimed = set()
     for cluster in raw_clusters:
         if not isinstance(cluster, dict) or not cluster.get("topic"):
@@ -182,51 +199,55 @@ def _assemble(items, raw_clusters):
             i for i in cluster.get("item_indices", [])
             if isinstance(i, int) and 0 <= i < len(items) and i not in claimed
         ]
-        if not indices:
+        members = [items[i] for i in indices]
+        if len(_outlets(members)) < MIN_OUTLETS:
             continue
         claimed.update(indices)
-        result.append({
+        clusters.append({
             "topic": cluster["topic"],
             "summary": cluster.get("summary", ""),
-            "items": [items[i] for i in indices],
+            "items": members,
         })
 
-    for i, item in enumerate(items):
-        if i not in claimed:
-            result.append(_single(item))
-    return result
+    uncorroborated = [item for i, item in enumerate(items) if i not in claimed]
+    return clusters, uncorroborated
 
 
 def _cluster_or_split(client, items):
+    """Returns (clusters, uncorroborated) for this batch. Items of a batch
+    that failed beyond splitting appear in neither: they were never judged,
+    so the caller must leave them alone to be retried on the next run."""
     try:
         raw = _request_clusters(client, items)
     except ClusterResponseError as exc:
         if len(items) < MIN_SPLIT_SIZE:
             print(
                 f"  clustering {len(items)} items failed ({exc}); "
-                "keeping them as single-item clusters"
+                "leaving them for the next run"
             )
-            return [_single(item) for item in items]
+            return [], []
         half = len(items) // 2
         print(
             f"  clustering {len(items)} items failed ({exc}); "
             f"retrying as two batches of {half} and {len(items) - half}"
         )
-        return (
-            _cluster_or_split(client, items[:half])
-            + _cluster_or_split(client, items[half:])
-        )
+        first_clusters, first_left = _cluster_or_split(client, items[:half])
+        second_clusters, second_left = _cluster_or_split(client, items[half:])
+        return first_clusters + second_clusters, first_left + second_left
     return _assemble(items, raw)
 
 
 def cluster_items(items, client=None):
-    """Returns a list of clusters: [{"topic", "summary", "items"}, ...],
-    where "items" are the original item dicts belonging to that cluster.
-    Every input item ends up in exactly one cluster."""
-    if not items:
-        return []
-    if len(items) == 1:
-        return [_single(items[0])]
+    """Returns (clusters, uncorroborated).
+
+    clusters: [{"topic", "summary", "items"}, ...] - one per story that at
+    least two different outlets cover, "items" being the original item dicts.
+    uncorroborated: items judged to be covered by a single outlet, left out of
+    the digest. Items from a batch that failed even after splitting are in
+    neither list - they weren't judged, so they get retried next run."""
+    if len(_outlets(items)) < MIN_OUTLETS:
+        # Nothing to corroborate against - skip the API call entirely.
+        return [], list(items)
 
     client = client or anthropic.Anthropic()
     return _cluster_or_split(client, items)

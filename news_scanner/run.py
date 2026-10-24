@@ -5,6 +5,10 @@ Dedupe runs before the Claude filter, not after, so items already sent in
 an earlier digest never get re-summarized - most of a feed's entries are
 still there from the previous run, and Haiku is the costly step.
 
+Only stories at least two outlets cover make the digest. Items left out for
+that reason are recorded as skipped (not sent) so later runs don't pay to
+judge them again; if nothing at all qualifies, no email goes out.
+
 Runs at 07:00 and 19:00 Europe/Amsterdam via systemd/news-scanner.timer.
 """
 
@@ -12,7 +16,7 @@ import argparse
 
 from news_scanner import settings  # noqa: F401 - loads .env as a side effect
 from news_scanner.cluster import cluster_items
-from news_scanner.dedupe import dedupe, mark_sent
+from news_scanner.dedupe import dedupe, mark_sent, mark_skipped
 from news_scanner.digest import compile_html, compile_text, generate_briefing
 from news_scanner.fetch import fetch_all
 from news_scanner.filter import filter_items
@@ -34,8 +38,11 @@ def run(dry_run=False):
     print(f"  {len(relevant)} items judged relevant")
 
     print("Grouping into story clusters...")
-    clusters = cluster_items(relevant)
-    print(f"  {len(clusters)} clusters")
+    clusters, uncorroborated = cluster_items(relevant)
+    print(
+        f"  {len(clusters)} stories covered by two or more outlets "
+        f"({len(uncorroborated)} single-outlet items left out)"
+    )
 
     print("Generating daily briefing...")
     briefing = generate_briefing(clusters)
@@ -47,16 +54,27 @@ def run(dry_run=False):
         # "Getting started" step 3.
         print("\nDry run - not sending or publishing. Digest would read:\n")
         print(compile_text(clusters, briefing))
+        if uncorroborated:
+            print("Left out (only one outlet covers them):")
+            for item in uncorroborated:
+                print(f"- [{item['source']}] {item['title']}")
         return clusters
 
-    subject = f"Politics & Geopolitics digest - {run_label.upper()}"
-    html = compile_html(clusters, briefing)
-    text = compile_text(clusters, briefing)
+    if clusters:
+        subject = f"Politics & Geopolitics digest - {run_label.upper()}"
+        html = compile_html(clusters, briefing)
+        text = compile_text(clusters, briefing)
 
-    print(f"Sending digest to {settings.DIGEST_RECIPIENTS}...")
-    send_digest(subject, html, text)
-    mark_sent([item for cluster in clusters for item in cluster["items"]])
-    print("Sent.")
+        print(f"Sending digest to {settings.DIGEST_RECIPIENTS}...")
+        send_digest(subject, html, text)
+        mark_sent([item for cluster in clusters for item in cluster["items"]])
+        print("Sent.")
+    else:
+        # Single-outlet items are dropped now, so a quiet run can end up with
+        # nothing - don't email a blank digest. The site still gets published
+        # below; it renders an empty run as "No new stories in this run."
+        print("No story is covered by two or more outlets - not sending an email.")
+    mark_skipped(uncorroborated)
 
     print("Publishing to site/data...")
     publish(clusters, briefing, run=run_label)
