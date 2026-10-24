@@ -10,8 +10,9 @@ Also writes each cluster's combined summary, synthesized across every
 source in it. See CLAUDE.md's "Cross-source duplication" tradeoff.
 
 Only stories covered by at least two different outlets are kept. A story one
-outlet alone reports is left out - and, to save output tokens, Sonnet is told
-not to write a summary for it at all. Several articles from the same outlet
+outlet alone reports is left out of this digest - and, to save output tokens,
+Sonnet is told not to write a summary for it at all. run.py holds such items
+over so a later outlet can still match them. Several articles from the same outlet
 still count as one outlet.
 
 A second, small Sonnet call then looks only at the finished topics and merges
@@ -24,7 +25,8 @@ slightly-less-merged clusters instead of taking the whole run down. A
 failed run doesn't mark anything as sent, so without this the next run
 would face an even bigger backlog and fail the same way - which is what
 happened on 2026-09-15. (A split also means an outlet in one half can't be
-matched with an outlet in the other; that story is left out as single-outlet.)
+matched with an outlet in the other; both come back as single-outlet and are
+held over by run.py for another try next run.)
 """
 
 import json

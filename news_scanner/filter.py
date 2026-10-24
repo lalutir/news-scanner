@@ -89,18 +89,26 @@ def _judge(client, item):
 
 
 def claude_filter(items, client=None):
-    """Final relevance call + one-line summary for every keyword survivor."""
+    """Final relevance call + one-line summary for every keyword survivor.
+    Returns (relevant, rejected): the rejected items are handed back so the
+    caller can record them - Haiku's verdict on an article doesn't change, and
+    paying for it again on every run is pure waste."""
     client = client or anthropic.Anthropic()
-    results = []
+    relevant, rejected = [], []
     for item in items:
         verdict = _judge(client, item)
         if verdict.get("relevant"):
-            results.append({**item, "summary": verdict["summary"]})
-    return results
+            relevant.append({**item, "summary": verdict["summary"]})
+        else:
+            rejected.append(item)
+    return relevant, rejected
 
 
 def filter_items(items, keywords=None, client=None):
-    """Full two-stage filter: keyword pre-filter, then Claude Haiku."""
+    """Full two-stage filter: keyword pre-filter, then Claude Haiku. Returns
+    (relevant, rejected), where rejected are only the keyword survivors Haiku
+    turned down - items the keyword pre-filter cut cost nothing to cut, so
+    they aren't tracked."""
     survivors = keyword_prefilter(items, keywords)
     return claude_filter(survivors, client)
 
@@ -111,7 +119,7 @@ if __name__ == "__main__":
     all_items = fetch_all()
     survivors = keyword_prefilter(all_items)
     print(f"{len(all_items)} fetched, {len(survivors)} survive the keyword pre-filter")
-    relevant = claude_filter(survivors)
-    print(f"{len(relevant)} judged relevant by Claude")
+    relevant, rejected = claude_filter(survivors)
+    print(f"{len(relevant)} judged relevant by Claude, {len(rejected)} rejected")
     for item in relevant[:10]:
         print(f"- [{item['source']}] {item['title']}\n  {item['summary']}")
