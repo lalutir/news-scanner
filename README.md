@@ -60,8 +60,8 @@ Backend config lives in environment variables (`.env`, not committed) — the si
 │   ├── settings.py             # loads .env once for every stage below
 │   ├── fetch.py               # pull + parse the configured feeds
 │   ├── filter.py              # keyword pre-filter, then Claude Haiku
-│   ├── cluster.py             # groups items by specific story (Claude Sonnet)
-│   ├── dedupe.py              # tracks what's already been sent
+│   ├── cluster.py             # groups items by specific story, drops single-outlet ones, merges duplicate topics (Claude Sonnet)
+│   ├── dedupe.py              # tracks what's already been sent or skipped
 │   ├── digest.py              # compiles the HTML/plaintext email + daily briefing
 │   ├── send.py                # Mailgun API call
 │   ├── publish.py             # writes site/data/<id>/latest.json
